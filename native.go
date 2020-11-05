@@ -34,7 +34,7 @@ type NativeClass struct {
 
 func (r *Runtime) TryToValue(i interface{}) (Value, error) {
 	var result Value
-	err := r.vm.try(r.ctx, func() {
+	err := r.vm.try(r.vm.ctx, func() {
 		result = r.ToValue(i)
 	})
 	if err.Error() == "" || err.Error() == "<nil>" {
@@ -204,7 +204,7 @@ func (r *Runtime) CreateNativeClass(
 	ctorImpl := func(call ConstructorCall) *Object {
 		fmt.Println("creating new inside ctor", className)
 		fCall := FunctionCall{
-			ctx:       call.ctx,
+			ctx:       r.vm.ctx,
 			This:      call.This,
 			Arguments: call.Arguments,
 		}
@@ -268,7 +268,7 @@ func (n NativeClass) InstanceOf(val interface{}) Value {
 	obj, err := r.New(r.newNativeFuncConstruct(func(args []Value, proto *Object) *Object {
 		obj := r.newBaseObject(proto, className)
 		// call := FunctionCall{
-		// 	ctx:       r.ctx,
+		// 	ctx:       r.vm.ctx,
 		// 	This:      obj.val,
 		// 	Arguments: args,
 		// }
@@ -324,8 +324,9 @@ func (n NativeClass) Constructor(call ConstructorCall) *Object {
 	// responseObject := r.ToValue(responseConstructor).(*Object)
 	// responseProto := responseObject.Get("prototype").(*Object)
 	// r.Set("Response", responseObject)
+	fmt.Println("do we ever come here")
 	fCall := FunctionCall{
-		ctx:       call.ctx,
+		ctx:       n.runtime.ctx,
 		This:      call.This,
 		Arguments: call.Arguments,
 	}
@@ -384,7 +385,7 @@ func (r *Runtime) Eval(name, src string, direct, strict bool) (Value, error) {
 	} else {
 		vm.push(valueFalse)
 	}
-	// ex := r.vm.try(r.ctx)
+	// ex := r.vm.try(r.vm.ctx)
 	// if ex != nil {
 	// 	return nil, ex
 	// }

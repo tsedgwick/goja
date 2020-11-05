@@ -540,8 +540,9 @@ func (r *Runtime) newFunc(name unistring.String, len int, strict bool) (f *funcO
 
 func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
-			ctx: r.ctx,
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -564,8 +565,9 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
-		ctx: r.ctx,
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -599,8 +601,9 @@ func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newT
 	}
 
 	f := &nativeFuncObject{
-		ctx: r.ctx,
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -631,8 +634,9 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
-		ctx: r.ctx,
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -654,8 +658,9 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 
 func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
-		ctx: r.ctx,
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -681,7 +686,7 @@ func (r *Runtime) newNativeFuncConstruct(construct func(args []Value, proto *Obj
 func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto *Object) *Object, name unistring.String, prototype, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
-	f := &nativeFuncObject{ctx: r.ctx}
+	f := &nativeFuncObject{ctx: r.vm.ctx}
 	f.class = classFunction
 	f.val = v
 	f.extensible = true
@@ -2247,7 +2252,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 	}
 
 	return r.toObject(method(FunctionCall{
-		ctx:  r.ctx,
+		ctx:  r.vm.ctx,
 		This: obj,
 	}))
 }
@@ -2263,7 +2268,7 @@ func returnIter(iter *Object) {
 
 func (r *Runtime) iterate(iter *Object, step func(Value)) {
 	for {
-		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{ctx: r.ctx, This: iter}))
+		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{ctx: r.vm.ctx, This: iter}))
 		if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
 			break
 		}

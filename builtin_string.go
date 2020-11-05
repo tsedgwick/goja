@@ -348,7 +348,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 	if regexp != _undefined && regexp != _null {
 		if matcher := toMethod(r.getV(regexp, symMatch)); matcher != nil {
 			return matcher(FunctionCall{
-				ctx:       r.ctx,
+				ctx:       r.vm.ctx,
 				This:      regexp,
 				Arguments: []Value{call.This},
 			})
@@ -366,7 +366,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 
 	if matcher, ok := r.toObject(rx.getSym(symMatch, nil)).self.assertCallable(); ok {
 		return matcher(FunctionCall{
-			ctx:       r.ctx,
+			ctx:       r.vm.ctx,
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
 		})
@@ -631,7 +631,7 @@ func (r *Runtime) stringproto_replace(call FunctionCall) Value {
 	if searchValue != _undefined && searchValue != _null {
 		if replacer := toMethod(r.getV(searchValue, symReplace)); replacer != nil {
 			return replacer(FunctionCall{
-				ctx:       r.ctx,
+				ctx:       r.vm.ctx,
 				This:      searchValue,
 				Arguments: []Value{call.This, replaceValue},
 			})
@@ -656,7 +656,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 	if regexp != _undefined && regexp != _null {
 		if searcher := toMethod(r.getV(regexp, symSearch)); searcher != nil {
 			return searcher(FunctionCall{
-				ctx:       r.ctx,
+				ctx:       r.vm.ctx,
 				This:      regexp,
 				Arguments: []Value{call.This},
 			})
@@ -674,7 +674,7 @@ func (r *Runtime) stringproto_search(call FunctionCall) Value {
 
 	if searcher, ok := r.toObject(rx.getSym(symSearch, nil)).self.assertCallable(); ok {
 		return searcher(FunctionCall{
-			ctx:       r.ctx,
+			ctx:       r.vm.ctx,
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
 		})
@@ -731,7 +731,7 @@ func (r *Runtime) stringproto_split(call FunctionCall) Value {
 	if separatorValue != _undefined && separatorValue != _null {
 		if splitter := toMethod(r.getV(separatorValue, symSplit)); splitter != nil {
 			return splitter(FunctionCall{
-				ctx:       r.ctx,
+				ctx:       r.vm.ctx,
 				This:      separatorValue,
 				Arguments: []Value{call.This, limitValue},
 			})

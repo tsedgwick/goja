@@ -632,7 +632,7 @@ func (r *Runtime) regexpproto_getFlags(call FunctionCall) Value {
 
 func (r *Runtime) regExpExec(execFn func(FunctionCall) Value, rxObj *Object, arg Value) Value {
 	res := execFn(FunctionCall{
-		ctx:       r.ctx,
+		ctx:       r.vm.ctx,
 		This:      rxObj,
 		Arguments: []Value{arg},
 	})
@@ -991,7 +991,7 @@ func (r *Runtime) regexpproto_stdReplacerGeneric(rxObj *Object, s, replaceStr va
 		if rcall != nil {
 			captures = append(captures, intToValue(int64(position)), s)
 			replacement = rcall(FunctionCall{
-				ctx:       r.ctx,
+				ctx:       r.vm.ctx,
 				This:      _undefined,
 				Arguments: captures,
 			}).toString()

@@ -10,7 +10,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -486,7 +485,7 @@ func (vm *vm) pushCtx() {
 			sb: vm.sb,
 			args: vm.args,
 		})*/
-	vm.callStack = append(vm.callStack, vmContext{})
+	vm.callStack = append(vm.callStack, vmContext{ctx: vm.ctx})
 	vm.saveCtx(&vm.callStack[len(vm.callStack)-1])
 }
 
@@ -499,6 +498,7 @@ func (vm *vm) restoreCtx(ctx *vmContext) {
 	vm.args = ctx.args
 	vm.newTarget = ctx.newTarget
 	vm.ctx = ctx.ctx
+
 }
 
 func (vm *vm) popCtx() {
@@ -526,9 +526,6 @@ func (vm *vm) toCallee(v Value) *Object {
 		panic("Unreachable")
 	case memberUnresolved:
 		// (REALMC-XXXX) can revert this once otto is gone
-		fmt.Printf("what is this then %T\n", v)
-		// time.Sleep(time.Second * 10)
-		// panic("ah")
 		panic(vm.r.NewTypeError("'%s' is not a function", unresolved.ref))
 	}
 	panic(vm.r.NewTypeError("Value is not an object: %s", v.toString()))
@@ -1859,10 +1856,6 @@ func (vm *vm) _nativeCall(f *nativeFuncObject, n int) {
 		vm.pushCtx()
 		vm.prg = nil
 		vm.funcName = f.nameProp.get(nil).string()
-		spew.Dump("what is func name, etc", vm.ctx)
-		// if vm.ctx == nil {
-		// 	panic("first occurence")
-		// }
 		ret := f.f(FunctionCall{
 			ctx:       vm.ctx,
 			Arguments: vm.stack[vm.sp-n : vm.sp],

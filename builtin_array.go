@@ -214,7 +214,7 @@ func (r *Runtime) arrayproto_toString(call FunctionCall) Value {
 		}
 	}
 	return r.objectproto_toString(FunctionCall{
-		ctx:  r.ctx,
+		ctx:  r.vm.ctx,
 		This: array,
 	})
 }
@@ -224,7 +224,7 @@ func (r *Runtime) writeItemLocaleString(item Value, buf *valueStringBuilder) {
 		if f, ok := r.getVStr(item, "toLocaleString").(*Object); ok {
 			if c, ok := f.self.assertCallable(); ok {
 				strVal := c(FunctionCall{
-					ctx:  r.ctx,
+					ctx:  r.vm.ctx,
 					This: item,
 				})
 				buf.WriteString(strVal.toString())

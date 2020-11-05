@@ -1,3 +1,4 @@
+// +build go1.14
 package goja
 
 import (

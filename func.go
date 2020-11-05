@@ -120,7 +120,7 @@ func (f *funcObject) construct(args []Value, newTarget *Object) *Object {
 
 	obj := f.val.runtime.newBaseObject(protoObj, classObject).val
 	ret := f.call(FunctionCall{
-		ctx:       obj.runtime.ctx,
+		ctx:       f.val.runtime.vm.ctx,
 		This:      obj,
 		Arguments: args,
 	}, newTarget)
