@@ -94,6 +94,14 @@ func (r *Runtime) arrayBufferProto_getByteLength(call FunctionCall) Value {
 	}
 	panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
 }
+func (r *Runtime) arrayBufferProto_setByteLength(call FunctionCall) Value {
+	o := r.toObject(call.This)
+	if b, ok := o.self.(*arrayBufferObject); ok {
+		b.ensureNotDetached()
+		return intToValue(int64(len(b.data)))
+	}
+	panic(r.NewTypeError("Object is not ArrayBuffer: %s", o))
+}
 
 func (r *Runtime) arrayBufferProto_slice(call FunctionCall) Value {
 	o := r.toObject(call.This)
@@ -1258,7 +1266,9 @@ func (r *Runtime) createArrayBufferProto(val *Object) objectImpl {
 	byteLengthProp := &valueProperty{
 		accessor:     true,
 		configurable: true,
+		writable:     true,
 		getterFunc:   r.newNativeFunc(r.arrayBufferProto_getByteLength, nil, "get byteLength", nil, 0),
+		setterFunc:   r.newNativeFunc(r.arrayBufferProto_getByteLength, nil, "set byteLength", nil, 0),
 	}
 	b._put("byteLength", byteLengthProp)
 	b._putProp("constructor", r.global.ArrayBuffer, true, false, true)

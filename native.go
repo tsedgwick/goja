@@ -213,6 +213,7 @@ func (r *Runtime) CreateNativeClass(
 		call.This.__wrapped = val
 		// add the toString function first so it can be overridden if user wants to do so
 		call.This.self._putProp("name", asciiString(className), true, false, true)
+		// call.This.self.setOwnStr("name", asciiString(className), true)
 		for _, prop := range funcProps {
 			// obj.propNames = append(obj.propNames, unistring.String(prop.Name))
 			// responseProto.self._putProp(unistring.String(prop.Name), prop.Value, true, false, true)
@@ -232,10 +233,12 @@ func (r *Runtime) CreateNativeClass(
 	proto := pObject.self
 
 	proto._putProp("name", asciiString(className), true, false, true)
+	// proto.setOwnStr("name", asciiString(className), false)
 	for _, prop := range classProps {
 		proto.setOwnStr(unistring.String(prop.Name), prop.Value, false)
 	}
 	responseObject.self._putProp("name", asciiString(className), true, false, true)
+	// responseObject.self.setOwnStr("name", asciiString(className), false)
 	for _, prop := range funcProps {
 		// obj.propNames = append(obj.propNames, unistring.String(prop.Name))
 		// responseProto.self._putProp(unistring.String(prop.Name), prop.Value, true, false, true)
@@ -292,6 +295,7 @@ func (n NativeClass) InstanceOf(val interface{}) Value {
 		// initStacktrace(blessedValueErr, stackTrace)
 	}
 	obj.self._putProp("name", asciiString(n.className), true, false, true)
+	// obj.self.setOwnStr("name", asciiString(n.className), false)
 	for _, prop := range n.funcProps {
 		// obj.propNames = append(obj.propNames, unistring.String(prop.Name))
 		obj.self._putProp(unistring.String(prop.Name), prop.Value, true, false, true)

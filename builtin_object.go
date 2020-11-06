@@ -540,6 +540,10 @@ func (r *Runtime) initObject() {
 	o._putProp("entries", r.newNativeFunc(r.object_keys, nil, "entries", nil, 1), true, false, true)
 	o._putProp("setPrototypeOf", r.newNativeFunc(r.object_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
 
+	entriesFunc := r.newNativeFunc(r.object_keys, nil, "entries", nil, 0)
+	o._putSym(symIterator, valueProp(entriesFunc, true, false, true))
+	o._putSym(symToStringTag, valueProp(asciiString(classObject), false, false, true))
+
 	bl := r.newBaseObject(nil, classObject)
 	bl.setOwnStr("copyWithin", valueTrue, true)
 	bl.setOwnStr("entries", valueTrue, true)

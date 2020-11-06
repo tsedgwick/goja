@@ -20,7 +20,9 @@ func TestArrayDelete(t *testing.T) {
 	var undef = a[0] === undefined;
 	var len = a.length;
 
-	deleted && undef && len === 2;
+	// deleted && undef && len === 2;
+	var d = new ArrayBuffer(2);
+	Array.prototype.slice.call(d, 0);
 	`
 
 	testScript1(SCRIPT, valueTrue, t)
