@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/dop251/goja/unistring"
 )
 
@@ -25,6 +26,7 @@ type NativeClass struct {
 	Function *Object //func(call ConstructorCall) *Object
 	// runtime *Runtime
 
+	getStacktrace func(err error) string
 	// name string
 	// // safe to panic inside these
 	// methods     map[string]Value
@@ -46,7 +48,7 @@ func (r *Runtime) TryToValue(i interface{}) (Value, error) {
 func (r *Runtime) MakeCustomError(name, msg string) *Object {
 	e := r.newError(r.global.Error, msg).(*Object)
 	e.self.setOwnStr("name", asciiString(name), false)
-	e.self._putProp("customerror", TrueValue(), false, false, false)
+	e.setStr("customerror", TrueValue(), nil, false)
 	return e
 }
 
@@ -58,7 +60,7 @@ func (r *Runtime) CreateNativeErrorClass(
 	classProps []Property,
 	funcProps []Property,
 ) NativeClass {
-	//TODO goja handle getStackTrace
+	//TODO goja handle getStacktrace
 	classProto := r.builtin_new(r.global.Error, []Value{})
 	o := classProto.self
 	o._putProp("name", asciiString(className), true, false, true)
@@ -93,8 +95,6 @@ func (r *Runtime) CreateNativeErrorClass(
 		return obj.val
 	}, unistring.String(className), classProto, 1)
 
-	// o := r.newNativeFuncObj(val, r.builtin_date, r.builtin_newDate, "Date", r.global.DatePrototype, 7)
-	v.self._putProp("message", newStringValue("holy moly"), true, false, true)
 	for _, prop := range funcProps {
 		// obj.propNames = append(obj.propNames, unistring.String(prop.Name))
 		v.self._putProp(unistring.String(prop.Name), prop.Value, true, false, true)
@@ -104,7 +104,7 @@ func (r *Runtime) CreateNativeErrorClass(
 	// o._putProp("UTC", r.newNativeFunc(r.date_UTC, nil, "UTC", nil, 7), true, false, true)
 	// o._putProp("now", r.newNativeFunc(r.date_now, nil, "now", nil, 0), true, false, true)
 
-	return NativeClass{Object: v, runtime: r, classProto: classProto, className: className, Function: v}
+	return NativeClass{Object: v, runtime: r, classProto: classProto, className: className, Function: v, getStacktrace: getStacktrace}
 }
 
 func (r *Runtime) CreateNativeError(name string) (Value, func(err error) Value) {
@@ -116,16 +116,6 @@ func (r *Runtime) CreateNativeError(name string) (Value, func(err error) Value) 
 
 	return e, func(err error) Value {
 		return r.MakeCustomError(name, err.Error())
-		// fmt.Println("trying to create new error", err)
-		// obj := r.newError(r.global.Error, err.Error()).(*Object)
-		// obj.self.setOwnStr("name", asciiString(name), false)
-		// f, x := obj.Get("message")
-		// fmt.Println("message of error is ", f, x)
-		// // obj, err := r.New(e, name, proto, 1))
-		// // if err != nil {
-		// // 	panic(err)
-		// // }
-		// return obj
 	}
 }
 
@@ -209,7 +199,6 @@ func (r *Runtime) CreateNativeClass(
 			Arguments: call.Arguments,
 		}
 		val := ctor(fCall)
-		fmt.Println("what's the val here", val)
 		call.This.__wrapped = val
 		// add the toString function first so it can be overridden if user wants to do so
 		call.This.self._putProp("name", asciiString(className), true, false, true)
@@ -270,11 +259,6 @@ func (n NativeClass) InstanceOf(val interface{}) Value {
 	classProto := n.classProto
 	obj, err := r.New(r.newNativeFuncConstruct(func(args []Value, proto *Object) *Object {
 		obj := r.newBaseObject(proto, className)
-		// call := FunctionCall{
-		// 	ctx:       r.vm.ctx,
-		// 	This:      obj.val,
-		// 	Arguments: args,
-		// }
 		obj.class = n.className
 		g := &_goNativeValue{baseObject: obj, value: val}
 		obj.val.self = g
@@ -284,13 +268,16 @@ func (n NativeClass) InstanceOf(val interface{}) Value {
 	if err != nil {
 		panic(err)
 	}
-	if err, ok := val.(error); ok {
-		// stackTrace := getStacktrace(blessedValueErr)
-		// if len(stackTrace) == 0 {
-		// 	stackTrace = newError(self.runtime, className, 0, blessedValueErr, blessedValueErr.Error()).formatWithStack()
-		// }
-
+	if err, ok := val.(error); ok && n.getStacktrace != nil {
+		stackTrace := n.getStacktrace(err)
+		if len(stackTrace) == 0 {
+			obj.self.setOwnStr("customerror", TrueValue(), false)
+		}
+		spew.Dump("stack trace is!", stackTrace)
 		obj.self._putProp("message", newStringValue(err.Error()), true, false, true)
+		if err.Error() == "<nil>" {
+			panic("<nil>")
+		}
 		// obj.defineProperty("message", toValue_string(blessedValueErr.Error()), 0111, false)
 		// initStacktrace(blessedValueErr, stackTrace)
 	}

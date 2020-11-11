@@ -309,10 +309,31 @@ func (vm *vm) run() {
 	interrupted := false
 	ticks := 0
 	for !vm.halt {
+		// vm.r.stackDepth = vm.r.stackDepth + 1
 		if interrupted = atomic.LoadUint32(&vm.interrupted) != 0; interrupted {
-			break
+			if f, ok := vm.interruptVal.(func()); ok {
+				defer func() {
+					if x := recover(); x != nil {
+						vm.interruptLock.Lock()
+						v := &InterruptedError{
+							iface: x,
+						}
+						atomic.StoreUint32(&vm.interrupted, 0)
+						vm.interruptVal = nil
+						vm.interruptLock.Unlock()
+						panic(v)
+					}
+				}()
+				fmt.Println("running interrupt func")
+				f()
+				fmt.Println("done running interrupt func")
+				atomic.StoreUint32(&vm.interrupted, 0)
+			} else {
+				break
+			}
+		} else {
+			vm.prg.code[vm.pc].exec(vm)
 		}
-		vm.prg.code[vm.pc].exec(vm)
 		ticks++
 		if ticks > 10000 {
 			runtime.Gosched()
@@ -323,6 +344,16 @@ func (vm *vm) run() {
 
 	if interrupted {
 		vm.interruptLock.Lock()
+		if f, ok := vm.interruptVal.(func()); ok {
+			fmt.Println("running interrupt func")
+			f()
+			fmt.Println("done running interrupt func")
+			// atomic.StoreUint32(&vm.interrupted, 0)
+			// vm.interruptVal = nil
+			vm.interruptVal = nil
+			vm.interruptLock.Unlock()
+			return
+		}
 		v := &InterruptedError{
 			iface: vm.interruptVal,
 		}
@@ -436,6 +467,12 @@ func (vm *vm) try(ctx1 context.Context, f func()) (ex *Exception) {
 			}
 			ex.stack = vm.captureStack(ex.stack, ctxOffset)
 		}
+		// if ex != nil {
+		// 	spew.Dump("what is ex", ex, ex.Error())
+		// 	if ex.Error() == "" || strings.Contains(ex.Error(), "<nil>") {
+		// 		ex = nil
+		// 	}
+		// }
 	}()
 
 	f()
@@ -1816,7 +1853,11 @@ func (numargs call) exec(vm *vm) {
 	n := int(numargs)
 	v := vm.stack[vm.sp-n-1] // callee
 	obj := vm.toCallee(v)
+
 repeat:
+	if vm.r.stackDepthLimit != 0 && len(vm.callStack)+1 >= vm.r.stackDepthLimit {
+		panic(rangeError("Maximum call stack size exceeded"))
+	}
 	switch f := obj.self.(type) {
 	case *funcObject:
 		vm.pc++
@@ -2284,6 +2325,7 @@ type try struct {
 func (t try) exec(vm *vm) {
 	o := vm.pc
 	vm.pc++
+
 	ex := vm.runTry(vm.ctx)
 	if ex != nil && t.catchOffset > 0 {
 		// run the catch block (in try)

@@ -11,6 +11,9 @@ func (r *Runtime) toConstructor(v Value) func(args []Value, newTarget *Object) *
 	if ctor := r.toObject(v).self.assertConstructor(); ctor != nil {
 		return ctor
 	}
+	if fun, ok := r.toObject(v).self.(*nativeFuncObject); ok {
+		return fun.assertConstructor()
+	}
 	panic(r.NewTypeError("Value is not a constructor"))
 }
 

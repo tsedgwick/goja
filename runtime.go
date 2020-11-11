@@ -185,6 +185,7 @@ type Runtime struct {
 	// Contains a list of weak collections that contain the key with the id.
 	weakKeys map[uint64]*weakCollections
 
+	stackDepth      int
 	stackDepthLimit int
 
 	Limiter *rate.Limiter
@@ -1263,6 +1264,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 		recursive = true
 		r.vm.pushCtx()
 	}
+
 	r.vm.prg = p
 	r.vm.pc = 0
 	ex := r.vm.runTry(r.vm.ctx)
@@ -2035,7 +2037,9 @@ func ToFunctionWithContext(v Value) (CallableWithContext, bool) {
 				defer func() {
 					if x := recover(); x != nil {
 						if ex, ok := x.(*InterruptedError); ok {
-							err = ex
+							if ex.Error() != "" && ex.Error() != "<nil>" {
+								err = ex
+							}
 						} else {
 							panic(x)
 						}
@@ -2080,7 +2084,7 @@ func AssertFunction(v Value) (Callable, bool) {
 						Arguments: args,
 					})
 				})
-				if ex != nil {
+				if ex != nil && ex.Error() != "" && ex.Error() != "<nil>" {
 					err = ex
 				}
 				vm := obj.runtime.vm
