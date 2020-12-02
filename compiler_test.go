@@ -1,9 +1,10 @@
 package goja
 
 import (
-	"github.com/dop251/goja/parser"
 	"io/ioutil"
 	"testing"
+
+	"github.com/dop251/goja/parser"
 )
 
 func testScript(script string, expectedResult Value, t *testing.T) {
@@ -2511,7 +2512,7 @@ func TestEmptyCodeError(t *testing.T) {
 	if _, err := New().RunString(`i`); err == nil {
 		t.Fatal("Expected an error")
 	} else {
-		if e := err.Error(); e != "ReferenceError: i is not defined at <eval>:1:1(0)" {
+		if e := err.Error(); e != "ReferenceError: 'i' is not defined at <eval>:1:1(0)" {
 			t.Fatalf("Unexpected error: '%s'", e)
 		}
 	}

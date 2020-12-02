@@ -370,7 +370,9 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 
 func (r *Runtime) object_entries(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-
+	if object == nil {
+		panic(r.NewTypeError("Object prototype may only be an Object or null"))
+	}
 	var values []Value
 	iter := &enumerableIter{
 		wrapped: obj.self.enumerateOwnKeys(),
@@ -386,7 +388,9 @@ func (r *Runtime) object_entries(call FunctionCall) Value {
 
 func (r *Runtime) object_values(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-
+	if object == nil {
+		panic(r.NewTypeError("Object prototype may only be an Object or null"))
+	}
 	var values []Value
 	iter := &enumerableIter{
 		wrapped: obj.self.enumerateOwnKeys(),
@@ -397,6 +401,26 @@ func (r *Runtime) object_values(call FunctionCall) Value {
 	}
 
 	return r.newArrayValues(values)
+}
+
+func (r *Runtime) object_fromEntries(call FunctionCall) Value {
+	object := call.Argument(0).ToObject(r)
+	if object == nil || !isArray(object) {
+		panic(r.NewTypeError("Object must be of type array"))
+	}
+
+	result := r.NewObject()
+	for _, i := range object.Keys() {
+		entry := object.Get(i).ToObject(r)
+		if !isArray(entry) {
+			panic(r.NewTypeError("Object must be of type array"))
+		}
+		key := entry.Get("0")
+		value := entry.Get("1")
+		result.setOwn(key, value, true)
+
+	}
+	return result
 }
 
 func (r *Runtime) objectproto_hasOwnProperty(call FunctionCall) Value {
@@ -448,6 +472,13 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 		return stringObjectUndefined
 	default:
 		obj := o.ToObject(r)
+		if obj == nil {
+			return newStringValue("[object Object]")
+		}
+		name := obj.self.getStr("name", nil)
+		if name != UndefinedValue() && name != nil && name.string() != "" {
+			return newStringValue(fmt.Sprintf("[object %s]", obj.self.getStr("name", nil)))
+		}
 		var clsName string
 		if isArray(obj) {
 			clsName = classArray
@@ -465,7 +496,7 @@ func (r *Runtime) objectproto_toString(call FunctionCall) Value {
 
 func (r *Runtime) objectproto_toLocaleString(call FunctionCall) Value {
 	toString := toMethod(r.getVStr(call.This, "toString"))
-	return toString(FunctionCall{This: call.This})
+	return toString(FunctionCall{ctx: r.vm.ctx, This: call.This})
 }
 
 func (r *Runtime) objectproto_getProto(call FunctionCall) Value {
@@ -579,6 +610,15 @@ func (r *Runtime) initObject() {
 	o._putProp("keys", r.newNativeFunc(r.object_keys, nil, "keys", nil, 1), true, false, true)
 	o._putProp("setPrototypeOf", r.newNativeFunc(r.object_setPrototypeOf, nil, "setPrototypeOf", nil, 2), true, false, true)
 	o._putProp("values", r.newNativeFunc(r.object_values, nil, "values", nil, 1), true, false, true)
+
+	entriesFunc := r.newNativeFunc(r.object_entries, nil, "entries", nil, 1)
+	o._putSym(symIterator, valueProp(entriesFunc, true, false, true))
+	o._putSym(symToStringTag, valueProp(asciiString(classObject), false, false, true))
+
+	o._putProp("values", r.newNativeFunc(r.object_values, nil, "values", nil, 1), true, false, true)
+	o._putProp("entries", r.newNativeFunc(r.object_entries, nil, "entries", nil, 1), true, false, true)
+
+	o._putProp("fromEntries", r.newNativeFunc(r.object_fromEntries, nil, "fromEntries", nil, 1), true, false, true)
 
 	r.addToGlobal("Object", r.global.Object)
 }

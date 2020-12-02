@@ -465,3 +465,7 @@ func (a *sparseArrayObject) export(ctx *objectExportCtx) interface{} {
 func (a *sparseArrayObject) exportType() reflect.Type {
 	return reflectTypeArray
 }
+
+func (a *sparseArrayObject) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return SizeEmpty, nil
+}

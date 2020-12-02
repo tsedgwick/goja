@@ -42,7 +42,10 @@ var (
 )
 
 var (
-	reflectTypeInt    = reflect.TypeOf(int64(0))
+	reflectTypeInt64  = reflect.TypeOf(int64(0))
+	reflectTypeInt32  = reflect.TypeOf(int32(0))
+	reflectTypeUInt32 = reflect.TypeOf(uint32(0))
+	reflectTypeInt    = reflect.TypeOf(0)
 	reflectTypeBool   = reflect.TypeOf(false)
 	reflectTypeNil    = reflect.TypeOf(nil)
 	reflectTypeFloat  = reflect.TypeOf(float64(0))
@@ -53,7 +56,19 @@ var (
 
 var intCache [256]Value
 
+func FalseValue() Value {
+	return valueFalse
+}
+func TrueValue() Value {
+	return valueTrue
+}
+
 type Value interface {
+	ToInt() int
+	ToUInt32() uint32
+	ToInt32() int32
+	ToInt64() int64
+
 	ToInteger() int64
 	toString() valueString
 	string() unistring.String
@@ -69,10 +84,30 @@ type Value interface {
 	Export() interface{}
 	ExportType() reflect.Type
 
+	IsObject() bool
+	IsNumber() bool
+
+	assertInt() (int, bool)
+	assertUInt32() (uint32, bool)
+	assertInt32() (int32, bool)
+	assertInt64() (int64, bool)
+	assertString() (valueString, bool)
+	assertFloat() (float64, bool)
+
 	baseObject(r *Runtime) *Object
 
 	hash(hasher *maphash.Hash) uint64
+
+	MemUsage(ctx *MemUsageContext) (uint64, error)
 }
+
+const (
+	SizeBool   = uint64(unsafe.Sizeof(true))
+	SizeNumber = uint64(unsafe.Sizeof(float64(0)))
+	SizeInt32  = uint64(unsafe.Sizeof(int32(0)))
+	SizeInt    = uint64(unsafe.Sizeof(int(0)))
+	SizeEmpty  = uint64(unsafe.Sizeof((*baseObject)(nil)))
+)
 
 type valueContainer interface {
 	toValue(*Runtime) Value
@@ -82,10 +117,23 @@ type typeError string
 type rangeError string
 type referenceError string
 
-type valueInt int64
+type valueNumber struct {
+	_type reflect.Type
+	val   interface{}
+}
+
+type valueInt int
+type valueUInt32 uint32
+type valueInt32 int32
+type valueInt64 int64
 type valueFloat float64
 type valueBool bool
 type valueNull struct{}
+
+func UndefinedValue() Value {
+	return valueUndefined{}
+}
+
 type valueUndefined struct {
 	valueNull
 }
@@ -154,8 +202,53 @@ func fToStr(num float64, mode ftoa.FToStrMode, prec int) string {
 	return string(ftoa.FToStr(num, mode, prec, buf1[:0]))
 }
 
+func (i valueInt) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return SizeNumber, nil
+}
+
+func (i valueInt) assertInt() (int, bool) {
+	return int(i), true
+}
+func (i valueInt) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (i valueInt) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (i valueInt) assertInt64() (int64, bool) {
+	return 0, false
+}
+
+func (i valueInt) assertFloat() (float64, bool) {
+	return 0, false
+}
+
+func (i valueInt) assertString() (valueString, bool) {
+	return nil, false
+}
+
 func (i valueInt) ToInteger() int64 {
 	return int64(i)
+}
+func (i valueInt) ToInt() int {
+	return int(i)
+}
+func (i valueInt) ToInt32() int32 {
+	return int32(i)
+}
+func (i valueInt) ToUInt32() uint32 {
+	return uint32(i)
+}
+
+func (i valueInt) ToInt64() int64 {
+	return int64(i)
+}
+
+func (i valueInt) IsNumber() bool {
+	return true
+}
+func (i valueInt) IsObject() bool {
+	return false
 }
 
 func (i valueInt) toString() valueString {
@@ -238,11 +331,66 @@ func (i valueInt) hash(*maphash.Hash) uint64 {
 	return uint64(i)
 }
 
+func (o valueBool) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return SizeBool, nil
+}
+
+func (b valueBool) ToInt() int {
+	if b {
+		return 1
+	}
+	return 0
+}
+func (b valueBool) ToInt32() int32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+func (b valueBool) ToInt64() int64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+func (b valueBool) ToUInt32() uint32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+func (b valueBool) assertFloat() (float64, bool) {
+	return 0, false
+}
+func (b valueBool) assertString() (valueString, bool) {
+	return nil, false
+}
+func (o valueBool) assertInt() (int, bool) {
+	return 0, false
+}
+
+func (o valueBool) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (o valueBool) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+
+func (o valueBool) assertInt64() (int64, bool) {
+	return 0, false
+}
+
 func (b valueBool) ToInteger() int64 {
 	if b {
 		return 1
 	}
 	return 0
+}
+func (b valueBool) IsNumber() bool {
+	return false
+}
+func (b valueBool) IsObject() bool {
+	return false
 }
 
 func (b valueBool) toString() valueString {
@@ -336,6 +484,39 @@ func (b valueBool) hash(*maphash.Hash) uint64 {
 	return hashFalse
 }
 
+func (n valueNull) assertInt() (int, bool) {
+	return 0, false
+}
+func (n valueNull) assertFloat() (float64, bool) {
+	return 0, false
+}
+func (n valueNull) assertString() (valueString, bool) {
+	return nil, false
+}
+func (n valueNull) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (n valueNull) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (n valueNull) assertInt64() (int64, bool) {
+	return 0, false
+}
+
+func (n valueNull) ToInt32() int32 {
+	return 0
+}
+func (n valueNull) ToUInt32() uint32 {
+	return 0
+}
+func (n valueNull) ToInt64() int64 {
+	return 0
+}
+
+func (n valueNull) ToInt() int {
+	return 0
+}
+
 func (n valueNull) ToInteger() int64 {
 	return 0
 }
@@ -354,6 +535,16 @@ func (n valueNull) ToString() Value {
 
 func (n valueNull) String() string {
 	return "null"
+}
+func (n valueNull) IsNumber() bool {
+	return false
+}
+func (n valueNull) IsObject() bool {
+	return false
+}
+
+func (n valueNull) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return SizeEmpty, nil
 }
 
 func (u valueUndefined) toString() valueString {
@@ -495,6 +686,7 @@ func (p *valueProperty) get(this Value) Value {
 	}
 	call, _ := p.getterFunc.self.assertCallable()
 	return call(FunctionCall{
+		ctx:  p.getterFunc.runtime.vm.ctx,
 		This: this,
 	})
 }
@@ -506,6 +698,7 @@ func (p *valueProperty) set(this, v Value) {
 	}
 	call, _ := p.setterFunc.self.assertCallable()
 	call(FunctionCall{
+		ctx:       p.setterFunc.runtime.vm.ctx,
 		This:      this,
 		Arguments: []Value{v},
 	})
@@ -543,6 +736,62 @@ func (p *valueProperty) hash(*maphash.Hash) uint64 {
 	panic("valueProperty should never be used in maps or sets")
 }
 
+func (p *valueProperty) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	total := SizeEmpty
+	total += uint64(len(p.String())) // count size of property name towards total object size.
+	if p.value != nil {
+		inc, err := p.value.MemUsage(ctx)
+		total += inc
+		if err != nil {
+			return total, err
+		}
+	}
+
+	return total, nil
+}
+
+func (p *valueProperty) ToInt() int {
+	return 0
+}
+
+func (p *valueProperty) ToInt32() int32 {
+	return 0
+}
+func (p *valueProperty) ToUInt32() uint32 {
+	return 0
+}
+
+func (p *valueProperty) ToInt64() int64 {
+	return 0
+}
+
+func (p *valueProperty) IsObject() bool {
+	return false
+}
+func (p *valueProperty) IsNumber() bool {
+	return false
+}
+
+func (p *valueProperty) assertFloat() (float64, bool) {
+	return 0, false
+}
+func (p *valueProperty) assertString() (valueString, bool) {
+	return nil, false
+}
+
+func (p *valueProperty) assertInt() (int, bool) {
+	return 0, false
+}
+func (p *valueProperty) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (p *valueProperty) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (p *valueProperty) assertInt64() (int64, bool) {
+	return 0, false
+}
+
 func floatToIntClip(n float64) int64 {
 	switch {
 	case math.IsNaN(n):
@@ -555,8 +804,62 @@ func floatToIntClip(n float64) int64 {
 	return int64(n)
 }
 
+func (f valueFloat) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return SizeNumber, nil
+}
+
+func (f valueFloat) ToInt() int {
+	switch {
+	case math.IsNaN(float64(f)):
+		return 0
+	case math.IsInf(float64(f), 1):
+		return math.MaxInt64
+	case math.IsInf(float64(f), -1):
+		return math.MinInt64
+	}
+	return int(f)
+}
+func (f valueFloat) ToInt32() int32 {
+	switch {
+	case math.IsNaN(float64(f)):
+		return 0
+	case math.IsInf(float64(f), 1):
+		return int32(math.MaxInt32)
+	case math.IsInf(float64(f), -1):
+		return int32(math.MinInt32)
+	}
+	return int32(f)
+}
+func (f valueFloat) ToInt64() int64 {
+	switch {
+	case math.IsNaN(float64(f)):
+		return 0
+	case math.IsInf(float64(f), 1):
+		return int64(math.MaxInt64)
+	case math.IsInf(float64(f), -1):
+		return int64(math.MinInt64)
+	}
+	return int64(f)
+}
+func (f valueFloat) ToUInt32() uint32 {
+	switch {
+	case math.IsNaN(float64(f)):
+		return 0
+	case math.IsInf(float64(f), 1):
+		return uint32(math.MaxInt32)
+	case math.IsInf(float64(f), -1):
+		return 0
+	}
+	return uint32(f)
+}
 func (f valueFloat) ToInteger() int64 {
 	return floatToIntClip(float64(f))
+}
+func (f valueFloat) IsNumber() bool {
+	return true
+}
+func (f valueFloat) IsObject() bool {
+	return false
 }
 
 func (f valueFloat) toString() valueString {
@@ -568,7 +871,7 @@ func (f valueFloat) string() unistring.String {
 }
 
 func (f valueFloat) ToString() Value {
-	return f
+	return asciiString(f.String())
 }
 
 func (f valueFloat) String() string {
@@ -589,6 +892,25 @@ func (f valueFloat) ToObject(r *Runtime) *Object {
 
 func (f valueFloat) ToNumber() Value {
 	return f
+}
+func (i valueFloat) assertString() (valueString, bool) {
+	return nil, false
+}
+func (f valueFloat) assertInt() (int, bool) {
+	return 0, false
+}
+func (f valueFloat) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (f valueFloat) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (f valueFloat) assertInt64() (int64, bool) {
+	return 0, false
+}
+
+func (f valueFloat) assertFloat() (float64, bool) {
+	return float64(f), true
 }
 
 func (f valueFloat) SameAs(other Value) bool {
@@ -669,6 +991,12 @@ func (o *Object) ToInteger() int64 {
 func (o *Object) toString() valueString {
 	return o.toPrimitiveString().toString()
 }
+func (o *Object) IsNumber() bool {
+	return false
+}
+func (o *Object) IsObject() bool {
+	return true
+}
 
 func (o *Object) string() unistring.String {
 	return o.toPrimitiveString().string()
@@ -735,6 +1063,11 @@ func (o *Object) baseObject(*Runtime) *Object {
 // the Object is a wrapped Go value (created using ToValue()).
 // This method will panic with an *Exception if a JavaScript exception is thrown in the process.
 func (o *Object) Export() (ret interface{}) {
+	if o.__wrapped != nil {
+		ret = o.__wrapped
+		return
+	}
+
 	o.runtime.tryPanic(func() {
 		ret = o.self.export(&objectExportCtx{})
 	})
@@ -742,12 +1075,107 @@ func (o *Object) Export() (ret interface{}) {
 	return
 }
 
+// func (o *Object) Export() interface{} { // TODO  look at me this changed
+// 	if o.__wrapped != nil {
+// 		return o.__wrapped
+// 	}
+
+// 	if bo, ok := o.baseObject(o.runtime).self.(*objectGoReflect); ok {
+// 		return bo.export(&objectExportCtx{})
+// 	}
+
+// 	return o.self.export(&objectExportCtx{})
+// }
+
 func (o *Object) ExportType() reflect.Type {
 	return o.self.exportType()
 }
 
 func (o *Object) hash(*maphash.Hash) uint64 {
 	return o.getId()
+}
+
+func (o *Object) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	if o.__wrapped != nil {
+		return SizeEmpty, nil
+	}
+	switch x := o.self.(type) {
+	case *objectGoReflect:
+		return SizeEmpty, nil
+	case *objectGoMapReflect:
+		return SizeEmpty, nil
+	case *objectGoMapSimple:
+		return SizeEmpty, nil
+	case *objectGoSlice:
+		return SizeEmpty, nil
+	case *objectGoSliceReflect:
+		return SizeEmpty, nil
+	case *arrayObject:
+		return x.MemUsage(ctx)
+	case *nativeFuncObject:
+		return x.MemUsage(ctx)
+	case *baseObject:
+		if o.self == nil {
+			return 0, nil
+		}
+		err := ctx.Descend()
+		if err != nil {
+			return 0, err
+		}
+		total, err := o.self.MemUsage(ctx)
+		ctx.Ascend()
+		return total, err
+	case *lazyObject:
+		if o.self == nil {
+			return 0, nil
+		}
+		total, err := o.self.MemUsage(ctx)
+		return total, err
+	case *primitiveValueObject:
+		if o.self == nil {
+			return 0, nil
+		}
+		total, err := o.self.MemUsage(ctx)
+		return total, err
+	case *stringObject:
+		if x.val == nil {
+			return 0, nil
+		}
+		return x.MemUsage(ctx)
+	default:
+	}
+	return 0, nil
+}
+func (o *Object) ToInt() int {
+	return o.self.toPrimitiveNumber().ToNumber().ToInt()
+}
+func (o *Object) ToInt32() int32 {
+	return o.self.toPrimitiveNumber().ToNumber().ToInt32()
+}
+func (o *Object) ToUInt32() uint32 {
+	return o.self.toPrimitiveNumber().ToNumber().ToUInt32()
+}
+func (o *Object) ToInt64() int64 {
+	return o.self.toPrimitiveNumber().ToNumber().ToInt64()
+}
+
+func (o *Object) assertInt() (int, bool) {
+	return 0, false
+}
+func (o *Object) assertString() (valueString, bool) {
+	return nil, false
+}
+func (o *Object) assertFloat() (float64, bool) {
+	return 0, false
+}
+func (o *Object) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (o *Object) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (o *Object) assertInt64() (int64, bool) {
+	return 0, false
 }
 
 // Get an object's property by name.
@@ -883,7 +1311,7 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 	ctx := _builtinJSON_stringifyContext{
 		r: o.runtime,
 	}
-	ex := o.runtime.vm.try(func() {
+	ex := o.runtime.vm.try(o.runtime.ctx, func() {
 		if !ctx.do(o) {
 			ctx.buf.WriteString("null")
 		}
@@ -894,8 +1322,8 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 	return ctx.buf.Bytes(), nil
 }
 
-// ClassName returns the class name
-func (o *Object) ClassName() string {
+// Class returns the class name
+func (o *Object) Class() string {
 	return o.self.className()
 }
 
@@ -906,6 +1334,12 @@ func (o valueUnresolved) throw() {
 func (o valueUnresolved) ToInteger() int64 {
 	o.throw()
 	return 0
+}
+func (o valueUnresolved) IsNumber() bool {
+	return false
+}
+func (o valueUnresolved) IsObject() bool {
+	return false
 }
 
 func (o valueUnresolved) toString() valueString {
@@ -983,8 +1417,91 @@ func (o valueUnresolved) hash(*maphash.Hash) uint64 {
 	return 0
 }
 
+func (o valueUnresolved) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	o.throw()
+	return 0, nil
+}
+func (o valueUnresolved) ToInt() int {
+	o.throw()
+	return 0
+}
+func (o valueUnresolved) ToInt32() int32 {
+	o.throw()
+	return 0
+}
+func (o valueUnresolved) ToUInt32() uint32 {
+	o.throw()
+	return 0
+}
+func (o valueUnresolved) ToInt64() int64 {
+	o.throw()
+	return 0
+}
+
+func (o valueUnresolved) assertInt() (int, bool) {
+	o.throw()
+	return 0, false
+}
+func (o valueUnresolved) assertUInt32() (uint32, bool) {
+	o.throw()
+	return 0, false
+}
+func (o valueUnresolved) assertInt32() (int32, bool) {
+	o.throw()
+	return 0, false
+}
+func (o valueUnresolved) assertInt64() (int64, bool) {
+	o.throw()
+	return 0, false
+}
+func (o valueUnresolved) assertFloat() (float64, bool) {
+	o.throw()
+	return 0, false
+}
+func (o valueUnresolved) assertString() (valueString, bool) {
+	o.throw()
+	return nil, false
+}
+
+func (s *Symbol) IsNumber() bool {
+	return false
+}
+
+func (s *Symbol) IsObject() bool {
+	return false
+}
 func (s *Symbol) ToInteger() int64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+func (s *Symbol) ToInt() int {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+func (s *Symbol) ToInt32() int32 {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+func (s *Symbol) ToUInt32() uint32 {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+func (s *Symbol) ToInt64() int64 {
+	panic(typeError("Cannot convert a Symbol value to a number"))
+}
+func (s *Symbol) assertFloat() (float64, bool) {
+	return 0, false
+}
+func (s *Symbol) assertInt() (int, bool) {
+	return 0, false
+}
+func (s *Symbol) assertInt32() (int32, bool) {
+	return 0, false
+}
+func (s *Symbol) assertUInt32() (uint32, bool) {
+	return 0, false
+}
+func (s *Symbol) assertInt64() (int64, bool) {
+	return 0, false
+}
+func (s *Symbol) assertString() (valueString, bool) {
+	return nil, false
 }
 
 func (s *Symbol) toString() valueString {
@@ -1052,6 +1569,10 @@ func (s *Symbol) baseObject(r *Runtime) *Object {
 
 func (s *Symbol) hash(*maphash.Hash) uint64 {
 	return uint64(s.h)
+}
+
+func (s *Symbol) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return 0, nil
 }
 
 func exportValue(v Value, ctx *objectExportCtx) interface{} {

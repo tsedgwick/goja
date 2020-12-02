@@ -2,6 +2,7 @@ package goja
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/dop251/goja/file"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"golang.org/x/text/collate"
+	"golang.org/x/time/rate"
 
 	js_ast "github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
@@ -160,6 +162,8 @@ type RandSource func() float64
 type Now func() time.Time
 
 type Runtime struct {
+	ctx context.Context
+
 	global          global
 	globalObject    *Object
 	stringSingleton *stringObject
@@ -176,6 +180,20 @@ type Runtime struct {
 	vm    *vm
 	hash  *maphash.Hash
 	idSeq uint64
+
+	stackDepth      int
+	stackDepthLimit int
+
+	Limiter *rate.Limiter
+	ticks   uint64
+}
+
+func (self *Runtime) Ticks() uint64 {
+	return self.ticks
+}
+
+func (self *Runtime) SetStackDepthLimit(limit int) {
+	self.stackDepthLimit = limit
 }
 
 type StackFrame struct {
@@ -245,6 +263,13 @@ func (f *StackFrame) Write(b *bytes.Buffer) {
 type Exception struct {
 	val   Value
 	stack []StackFrame
+
+	nativeErr   error
+	ignoreStack bool
+}
+
+func (e *Exception) NativeError() error {
+	return e.nativeErr
 }
 
 type uncatchableException struct {
@@ -274,7 +299,9 @@ func (e *InterruptedError) String() string {
 		b.WriteString(fmt.Sprint(e.iface))
 		b.WriteByte('\n')
 	}
-	e.writeFullStack(&b)
+	if !e.ignoreStack {
+		e.writeFullStack(&b)
+	}
 	return b.String()
 }
 
@@ -284,7 +311,9 @@ func (e *InterruptedError) Error() string {
 	}
 	var b bytes.Buffer
 	b.WriteString(fmt.Sprint(e.iface))
-	e.writeShortStack(&b)
+	if !e.ignoreStack {
+		e.writeShortStack(&b)
+	}
 	return b.String()
 }
 
@@ -312,7 +341,9 @@ func (e *Exception) String() string {
 		b.WriteString(e.val.String())
 		b.WriteByte('\n')
 	}
-	e.writeFullStack(&b)
+	if !e.ignoreStack {
+		e.writeFullStack(&b)
+	}
 	return b.String()
 }
 
@@ -322,7 +353,9 @@ func (e *Exception) Error() string {
 	}
 	var b bytes.Buffer
 	b.WriteString(e.val.String())
-	e.writeShortStack(&b)
+	if !e.ignoreStack {
+		e.writeShortStack(&b)
+	}
 	return b.String()
 }
 
@@ -399,13 +432,43 @@ func (r *Runtime) typeErrorResult(throw bool, args ...interface{}) {
 	}
 }
 
+func (r *Runtime) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	total := uint64(0)
+
+	if r.globalObject != nil {
+		inc, err := r.globalObject.self.MemUsage(ctx)
+		total += inc
+		fmt.Println("inc, total", inc, total)
+		if err != nil {
+			return total, err
+		}
+	}
+
+	if r.vm.stack != nil {
+		inc, err := r.vm.stack.MemUsage(ctx)
+		total += inc
+		if err != nil {
+			return total, err
+		}
+	}
+	// if r.vm.stash != nil {
+	// 	inc, err := r.vm.stash.MemUsage(ctx)
+	// 	total += inc
+	// 	if err != nil {
+	// 		return total, err
+	// 	}
+	// }
+
+	return total, nil
+}
+
 func (r *Runtime) newError(typ *Object, format string, args ...interface{}) Value {
 	msg := fmt.Sprintf(format, args...)
 	return r.builtin_new(typ, []Value{newStringValue(msg)})
 }
 
 func (r *Runtime) throwReferenceError(name unistring.String) {
-	panic(r.newError(r.global.ReferenceError, "%s is not defined", name))
+	panic(r.newError(r.global.ReferenceError, "'%s' is not defined", name))
 }
 
 func (r *Runtime) newSyntaxError(msg string, offset int) Value {
@@ -471,7 +534,9 @@ func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 		f, _ := args[0].(string)
 		msg = fmt.Sprintf(f, args[1:]...)
 	}
-	return r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
+	e := r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
+	e.Set(fieldCustomError, true)
+	return e
 }
 
 func (r *Runtime) NewGoError(err error) *Object {
@@ -499,7 +564,9 @@ func (r *Runtime) newFunc(name unistring.String, len int, strict bool) (f *funcO
 
 func (r *Runtime) newNativeFuncObj(v *Object, call func(FunctionCall) Value, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -522,7 +589,9 @@ func (r *Runtime) newNativeConstructor(call func(ConstructorCall) *Object, name 
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -567,7 +636,9 @@ func (r *Runtime) newNativeConstructOnly(v *Object, ctor func(args []Value, newT
 	}
 
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -598,7 +669,9 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 	v := &Object{runtime: r}
 
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -620,7 +693,9 @@ func (r *Runtime) newNativeFunc(call func(FunctionCall) Value, construct func(ar
 
 func (r *Runtime) newNativeFuncConstructObj(v *Object, construct func(args []Value, proto *Object) *Object, name unistring.String, proto *Object, length int) *nativeFuncObject {
 	f := &nativeFuncObject{
+		ctx: r.vm.ctx,
 		baseFuncObject: baseFuncObject{
+			ctx: r.vm.ctx,
 			baseObject: baseObject{
 				class:      classFunction,
 				val:        v,
@@ -646,7 +721,7 @@ func (r *Runtime) newNativeFuncConstruct(construct func(args []Value, proto *Obj
 func (r *Runtime) newNativeFuncConstructProto(construct func(args []Value, proto *Object) *Object, name unistring.String, prototype, proto *Object, length int) *Object {
 	v := &Object{runtime: r}
 
-	f := &nativeFuncObject{}
+	f := &nativeFuncObject{ctx: r.vm.ctx}
 	f.class = classFunction
 	f.val = v
 	f.extensible = true
@@ -751,8 +826,9 @@ func (r *Runtime) error_toString(call FunctionCall) Value {
 func (r *Runtime) builtin_Error(args []Value, proto *Object) *Object {
 	obj := r.newBaseObject(proto, classError)
 	if len(args) > 0 && args[0] != _undefined {
-		obj._putProp("message", args[0], true, false, true)
+		obj._putProp("message", args[0], true, true, true)
 	}
+	obj._putProp("name", proto.Get("name"), true, true, true)
 	return obj.val
 }
 
@@ -1087,6 +1163,14 @@ func New() *Runtime {
 	return r
 }
 
+// NewWithContext creates an instance of a Javascript runtime that can be used to run code. Multiple instances may be created and
+// used simultaneously, however it is not possible to pass JS values across runtimes.
+func NewWithContext(ctx context.Context) *Runtime {
+	r := &Runtime{ctx: ctx}
+	r.init()
+	return r
+}
+
 // Compile creates an internal representation of the JavaScript code that can be later run using the Runtime.RunProgram()
 // method. This representation is not linked to a runtime in any way and can be run in multiple runtimes (possibly
 // at the same time).
@@ -1217,8 +1301,9 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	}
 	vm.prg = p
 	vm.pc = 0
-	vm.result = _undefined
-	ex := vm.runTry()
+	vm.result = _undefined // TODO: LOOK AT ME newly added
+	ex := vm.runTry(r.vm.ctx)
+
 	if ex == nil {
 		result = r.vm.result
 	} else {
@@ -2024,6 +2109,13 @@ func (r *Runtime) Set(name string, value interface{}) error {
 	})
 }
 
+// Set the specified value as a property of the global object.
+// The value is first converted using ToValue()
+// func (r *Runtime) Set(name string, value interface{}) error {
+// 	r.globalObject.self.setOwnStr(unistring.NewFromString(name), r.ToValue(value), false)
+// 	return nil
+// }
+
 // Get the specified variable in the global context.
 // Equivalent to dereferencing a variable by name in non-strict mode. If variable is not defined returns nil.
 // Note, this is not the same as GlobalObject().Get(name),
@@ -2076,6 +2168,44 @@ func (r *Runtime) New(construct Value, args ...Value) (o *Object, err error) {
 
 // Callable represents a JavaScript function that can be called from Go.
 type Callable func(this Value, args ...Value) (Value, error)
+type CallableWithContext func(ctx context.Context, this Value, args ...Value) (Value, error)
+
+func ToFunctionWithContext(v Value) (CallableWithContext, bool) {
+	if obj, ok := v.(*Object); ok {
+		if f, ok := obj.self.assertCallable(); ok {
+			return func(ctx context.Context, this Value, args ...Value) (ret Value, err error) {
+				defer func() {
+					if x := recover(); x != nil {
+						if ex, ok := x.(*InterruptedError); ok {
+							if ex.Error() != "" && ex.Error() != "<nil>" {
+								err = ex
+							}
+						} else {
+							panic(x)
+						}
+					}
+				}()
+				ex := obj.runtime.vm.try(ctx, func() {
+					ret = f(FunctionCall{
+						ctx:       ctx,
+						This:      this,
+						Arguments: args,
+					})
+				})
+				if ex != nil {
+					err = ex
+				}
+				vm := obj.runtime.vm
+				vm.clearStack()
+				if len(vm.callStack) == 0 {
+					obj.runtime.leave()
+				}
+				return
+			}, true
+		}
+	}
+	return nil, false
+}
 
 // AssertFunction checks if the Value is a function and returns a Callable.
 func AssertFunction(v Value) (Callable, bool) {
@@ -2086,13 +2216,18 @@ func AssertFunction(v Value) (Callable, bool) {
 					if x := recover(); x != nil {
 						if ex, ok := x.(*uncatchableException); ok {
 							err = ex.err
+						} else if ex, ok := x.(*InterruptedError); ok {
+							if ex.Error() != "" && ex.Error() != "<nil>" {
+								err = ex
+							}
 						} else {
 							panic(x)
 						}
 					}
 				}()
-				ex := obj.runtime.vm.try(func() {
+				ex := obj.runtime.vm.try(obj.runtime.ctx, func() {
 					ret = f(FunctionCall{
+						ctx:       obj.runtime.ctx,
 						This:      this,
 						Arguments: args,
 					})
@@ -2268,6 +2403,7 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 	}
 
 	return r.toObject(method(FunctionCall{
+		ctx:  r.vm.ctx,
 		This: obj,
 	}))
 }
@@ -2275,13 +2411,13 @@ func (r *Runtime) getIterator(obj Value, method func(FunctionCall) Value) *Objec
 func returnIter(iter *Object) {
 	retMethod := toMethod(iter.self.getStr("return", nil))
 	if retMethod != nil {
-		iter.runtime.toObject(retMethod(FunctionCall{This: iter}))
+		iter.runtime.toObject(retMethod(FunctionCall{ctx: iter.runtime.ctx, This: iter}))
 	}
 }
 
 func (r *Runtime) iterate(iter *Object, step func(Value)) {
 	for {
-		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
+		res := r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{ctx: r.vm.ctx, This: iter}))
 		if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
 			break
 		}
@@ -2364,7 +2500,7 @@ func isRegexp(v Value) bool {
 
 func limitCallArgs(call FunctionCall, n int) FunctionCall {
 	if len(call.Arguments) > n {
-		return FunctionCall{This: call.This, Arguments: call.Arguments[:n]}
+		return FunctionCall{ctx: call.ctx, This: call.This, Arguments: call.Arguments[:n]}
 	} else {
 		return call
 	}
@@ -2439,4 +2575,21 @@ func strPropToInt(s unistring.String) (int, bool) {
 		return res, true
 	}
 	return 0, false
+}
+
+func (r *Runtime) MakeTypeError(args ...interface{}) *Object {
+	msg := ""
+	if len(args) > 0 {
+		f, _ := args[0].(string)
+		msg = fmt.Sprintf(f, args[1:]...)
+	}
+
+	e := r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
+	e.self.setOwnStr(fieldCustomError, TrueValue(), false)
+	return e
+}
+
+func (r *Runtime) NewNativeFunction(name string, length int, call func(FunctionCall) Value) (*Object, error) {
+	x := r.newNativeFuncObj(r.NewObject(), call, nil, unistring.String(name), nil, length)
+	return x.val, nil
 }

@@ -172,6 +172,7 @@ func (h *jsProxyHandler) proxyCall(trap proxyTrap, args ...Value) (Value, bool) 
 	if m := toMethod(r.getVStr(h.handler, unistring.String(trap.String()))); m != nil {
 		return m(FunctionCall{
 			This:      h.handler,
+			ctx:       r.vm.ctx,
 			Arguments: args,
 		}), true
 	}
