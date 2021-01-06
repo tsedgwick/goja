@@ -365,6 +365,7 @@ func (r *Runtime) stringproto_match(call FunctionCall) Value {
 
 	if matcher, ok := r.toObject(rx.getSym(SymMatch, nil)).self.assertCallable(); ok {
 		return matcher(FunctionCall{
+			ctx:       r.vm.ctx,
 			This:      rx.val,
 			Arguments: []Value{call.This.toString()},
 		})
@@ -388,6 +389,7 @@ func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
 		}
 		if matcher := toMethod(r.getV(regexp, SymMatchAll)); matcher != nil {
 			return matcher(FunctionCall{
+				ctx:       r.vm.ctx,
 				This:      regexp,
 				Arguments: []Value{call.This},
 			})

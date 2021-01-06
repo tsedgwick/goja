@@ -612,8 +612,8 @@ func (r *Runtime) initObject() {
 	o._putProp("values", r.newNativeFunc(r.object_values, nil, "values", nil, 1), true, false, true)
 
 	entriesFunc := r.newNativeFunc(r.object_entries, nil, "entries", nil, 1)
-	o._putSym(symIterator, valueProp(entriesFunc, true, false, true))
-	o._putSym(symToStringTag, valueProp(asciiString(classObject), false, false, true))
+	o._putSym(SymIterator, valueProp(entriesFunc, true, false, true))
+	o._putSym(SymToStringTag, valueProp(asciiString(classObject), false, false, true))
 
 	o._putProp("values", r.newNativeFunc(r.object_values, nil, "values", nil, 1), true, false, true)
 	o._putProp("entries", r.newNativeFunc(r.object_entries, nil, "entries", nil, 1), true, false, true)
