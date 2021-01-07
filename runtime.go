@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dop251/goja/file"
 	"go/ast"
 	"hash/maphash"
 	"math"
@@ -15,6 +14,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/dop251/goja/file"
 
 	"golang.org/x/text/collate"
 	"golang.org/x/time/rate"
@@ -28,6 +29,8 @@ const (
 	sqrt1_2 float64 = math.Sqrt2 / 2
 
 	deoptimiseRegexp = false
+
+	defaultStackTraceLimit = 10
 )
 
 var (
@@ -183,6 +186,7 @@ type Runtime struct {
 
 	stackDepth      int
 	stackDepthLimit int
+	stackTraceLimit int
 
 	Limiter *rate.Limiter
 	ticks   uint64
@@ -194,6 +198,13 @@ func (self *Runtime) Ticks() uint64 {
 
 func (self *Runtime) SetStackDepthLimit(limit int) {
 	self.stackDepthLimit = limit
+}
+
+// SetStackTraceLimit sets an upper limit to the number of stack frames that
+// goja will use when formatting an error's stack trace. By default, the limit
+// is 10. This is consistent with V8 and SpiderMonkey.
+func (self *Runtime) SetStackTraceLimit(limit int) {
+	self.stackTraceLimit = limit
 }
 
 type StackFrame struct {
@@ -266,6 +277,7 @@ type Exception struct {
 
 	nativeErr   error
 	ignoreStack bool
+	traceLimit  int
 }
 
 func (e *Exception) NativeError() error {
@@ -318,7 +330,16 @@ func (e *InterruptedError) Error() string {
 }
 
 func (e *Exception) writeFullStack(b *bytes.Buffer) {
-	for _, frame := range e.stack {
+	limit := e.traceLimit
+	if limit == 0 {
+		limit = defaultStackTraceLimit
+	}
+
+	for i, frame := range e.stack {
+		if i >= limit {
+			break
+		}
+
 		b.WriteString("\tat ")
 		frame.Write(b)
 		b.WriteByte('\n')
@@ -535,7 +556,6 @@ func (r *Runtime) NewTypeError(args ...interface{}) *Object {
 		msg = fmt.Sprintf(f, args[1:]...)
 	}
 	e := r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
-	e.Set(fieldCustomError, true)
 	return e
 }
 
@@ -1253,11 +1273,13 @@ func (r *Runtime) compile(name, src string, strict, eval, inGlobal bool) (p *Pro
 		switch x1 := err.(type) {
 		case *CompilerSyntaxError:
 			err = &Exception{
-				val: r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())}),
+				val:        r.builtin_new(r.global.SyntaxError, []Value{newStringValue(x1.Error())}),
+				traceLimit: r.stackTraceLimit,
 			}
 		case *CompilerReferenceError:
 			err = &Exception{
-				val: r.newError(r.global.ReferenceError, x1.Message),
+				val:        r.newError(r.global.ReferenceError, x1.Message),
+				traceLimit: r.stackTraceLimit,
 			} // TODO proper message
 		}
 	}
@@ -2297,6 +2319,23 @@ func NegativeInf() Value {
 func tryFunc(f func()) (ret interface{}) {
 	defer func() {
 		ret = recover()
+		// func (r *Runtime) tryFunc(f func()) (err error) {
+		// 	defer func() {
+		// 		if x := recover(); x != nil {
+		// 			switch x := x.(type) {
+		// 			case *Exception:
+		// 				err = x
+		// 			case *InterruptedError:
+		// 				err = x
+		// 			case Value:
+		// 				err = &Exception{
+		// 					val:        x,
+		// 					traceLimit: r.stackTraceLimit,
+		// 				}
+		// 			default:
+		// 				panic(x)
+		// 			}
+		// 		}
 	}()
 
 	f()
@@ -2585,7 +2624,6 @@ func (r *Runtime) MakeTypeError(args ...interface{}) *Object {
 	}
 
 	e := r.builtin_new(r.global.TypeError, []Value{newStringValue(msg)})
-	e.self.setOwnStr(fieldCustomError, TrueValue(), false)
 	return e
 }
 
