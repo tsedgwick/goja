@@ -307,15 +307,19 @@ func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *regexpOb
 				} else {
 					return r._newRegExp(rx.source, flagsVal.toString().String(), proto)
 				}
-			} else {
-				pattern = nilSafe(obj.self.getStr("source", nil)).toString()
-				if flagsVal == nil || flagsVal == _undefined {
-					flags = nilSafe(obj.self.getStr("flags", nil)).toString().String()
-				} else {
-					flags = flagsVal.toString().String()
-				}
-				goto exit
+				// if obj, ok := patternVal.(*Object); ok {
+				// 	if rx, ok := obj.self.(*regexpObject); ok {
+				// 		if flagsVal == nil || flagsVal == _undefined {
+				// 			return r._newRegExp(rx.source, "", proto)
 			}
+		} else {
+			pattern = nilSafe(obj.self.getStr("source", nil)).toString()
+			if flagsVal == nil || flagsVal == _undefined {
+				flags = nilSafe(obj.self.getStr("flags", nil)).toString().String()
+			} else {
+				flags = flagsVal.toString().String()
+			}
+			goto exit
 		}
 	}
 
