@@ -323,9 +323,6 @@ func (e *InterruptedError) Error() string {
 	}
 	var b bytes.Buffer
 	b.WriteString(fmt.Sprint(e.iface))
-	if !e.ignoreStack {
-		e.writeShortStack(&b)
-	}
 	return b.String()
 }
 
@@ -374,9 +371,6 @@ func (e *Exception) Error() string {
 	}
 	var b bytes.Buffer
 	b.WriteString(e.val.String())
-	if !e.ignoreStack {
-		e.writeShortStack(&b)
-	}
 	return b.String()
 }
 
