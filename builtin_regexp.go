@@ -307,7 +307,7 @@ func (r *Runtime) newRegExp(patternVal, flagsVal Value, proto *Object) *regexpOb
 				} else {
 					return r._newRegExp(rx.source, flagsVal.toString().String(), proto)
 				}
-				// if obj, ok := patternVal.(*Object); ok {
+				//TODO LOOK AT ME if obj, ok := patternVal.(*Object); ok {
 				// 	if rx, ok := obj.self.(*regexpObject); ok {
 				// 		if flagsVal == nil || flagsVal == _undefined {
 				// 			return r._newRegExp(rx.source, "", proto)
