@@ -1497,6 +1497,7 @@ func (s *Symbol) ToUInt32() uint32 {
 func (s *Symbol) ToInt64() int64 {
 	panic(typeError("Cannot convert a Symbol value to a number"))
 }
+
 func (s *Symbol) assertFloat() (float64, bool) {
 	return 0, false
 }

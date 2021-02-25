@@ -508,6 +508,10 @@ func (*baseDynamicObject) _putProp(name unistring.String, value Value, writable,
 func (*baseDynamicObject) _putSym(s *Symbol, prop Value) {
 }
 
+func (b *baseDynamicObject) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return b.val.MemUsage(ctx)
+}
+
 func (a *dynamicArray) sortLen() int64 {
 	return int64(a.a.Len())
 }
@@ -736,4 +740,8 @@ func (a *dynamicArray) ownKeys(all bool, accum []Value) []Value {
 
 func (a *dynamicArray) ownPropertyKeys(all bool, accum []Value) []Value {
 	return a.ownKeys(all, accum)
+}
+
+func (a *dynamicArray) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return a.val.MemUsage(ctx)
 }

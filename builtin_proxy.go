@@ -385,3 +385,7 @@ func (r *Runtime) initProxy() {
 	r.global.Proxy = r.newLazyObject(r.createProxy)
 	r.addToGlobal("Proxy", r.global.Proxy)
 }
+
+func (np *nativeProxyHandler) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	return 0, nil
+}

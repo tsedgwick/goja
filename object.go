@@ -863,7 +863,7 @@ func (o *Object) tryPrimitive(methodName unistring.String) Value {
 	if method, ok := o.self.getStr(methodName, nil).(*Object); ok {
 		if call, ok := method.self.assertCallable(); ok {
 			v := call(FunctionCall{
-				Ctx:  o.val.runtime.ctx,
+				ctx:  o.runtime.ctx,
 				This: o,
 			})
 			if _, fail := v.(*Object); !fail {

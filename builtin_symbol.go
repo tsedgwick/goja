@@ -7,10 +7,7 @@ var (
 	SymIsConcatSpreadable = newSymbol(asciiString("Symbol.isConcatSpreadable"))
 	SymIterator           = newSymbol(asciiString("Symbol.iterator"))
 	SymMatch              = newSymbol(asciiString("Symbol.match"))
-<<<<<<< HEAD
 	SymMatchAll           = newSymbol(asciiString("Symbol.matchAll"))
-=======
->>>>>>> REALMC-7470 pull latest commits from dop251/goja (#3)
 	SymReplace            = newSymbol(asciiString("Symbol.replace"))
 	SymSearch             = newSymbol(asciiString("Symbol.search"))
 	SymSpecies            = newSymbol(asciiString("Symbol.species"))
@@ -121,10 +118,7 @@ func (r *Runtime) createSymbol(val *Object) objectImpl {
 		SymIsConcatSpreadable,
 		SymIterator,
 		SymMatch,
-<<<<<<< HEAD
 		SymMatchAll,
-=======
->>>>>>> REALMC-7470 pull latest commits from dop251/goja (#3)
 		SymReplace,
 		SymSearch,
 		SymSpecies,

@@ -156,6 +156,8 @@ type proxyHandler interface {
 	construct(target *Object, args []Value, newTarget *Object) (Value, bool)
 
 	toObject(*Runtime) *Object
+
+	MemUsage(ctx *MemUsageContext) (uint64, error)
 }
 
 type jsProxyHandler struct {
@@ -1077,4 +1079,11 @@ func (p *proxyObject) MemUsage(ctx *MemUsageContext) (uint64, error) {
 	ctx.Ascend()
 
 	return total, nil
+}
+
+func (h *jsProxyHandler) MemUsage(ctx *MemUsageContext) (uint64, error) {
+	if h == nil || h.handler == nil || ctx.IsObjVisited(h.handler.self) {
+		return SizeEmpty, nil
+	}
+	return h.handler.MemUsage(ctx)
 }
