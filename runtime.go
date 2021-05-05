@@ -1357,7 +1357,7 @@ func (r *Runtime) RunProgram(p *Program) (result Value, err error) {
 	}
 	vm.prg = p
 	vm.pc = 0
-	vm.result = _undefined // TODO: LOOK AT ME newly added
+	// vm.result = _undefined // TODO: LOOK AT ME newly added
 	ex := vm.runTry(r.vm.ctx)
 
 	if ex == nil {
