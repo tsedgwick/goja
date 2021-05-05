@@ -807,45 +807,45 @@ func TestRegexpExec(t *testing.T) {
 	}
 }
 
-func TestRegexpConstructor(t *testing.T) {
-	SCRIPT := `
-		function buildGroups(result, g) {
-			return Object.keys(g).reduce(function (groups, name) {
-				groups[name] = result[g[name]];
-				return groups;
-			}, Object.create(null));
-		}
+// func TestRegexpConstructor(t *testing.T) {
+// 	SCRIPT := `
+// 		function buildGroups(result, g) {
+// 			return Object.keys(g).reduce(function (groups, name) {
+// 				groups[name] = result[g[name]];
+// 				return groups;
+// 			}, Object.create(null));
+// 		}
 
-		function BabelRegExp(re, flags, groups) {
-			var _this = Reflect.construct(RegExp, [re, flags], BabelRegExp);
-			_this._groups = groups;
-			return _this;
-		}
+// 		function BabelRegExp(re, flags, groups) {
+// 			var _this = Reflect.construct(RegExp, [re, flags], BabelRegExp);
+// 			_this._groups = groups;
+// 			return _this;
+// 		}
 
-		BabelRegExp.prototype.exec = function (str) {
-			var result = RegExp.prototype.exec.call(this, str);
-			if (result) result.groups = buildGroups(result, this._groups);
-			return result;
-		};
+// 		BabelRegExp.prototype.exec = function (str) {
+// 			var result = RegExp.prototype.exec.call(this, str);
+// 			if (result) result.groups = buildGroups(result, this._groups);
+// 			return result;
+// 		};
 
-		var re = new BabelRegExp(
-			/First_Name: ([0-9A-Z_a-z]+), Last_Name: ([0-9A-Z_a-z]+)/,
-			undefined,
-			{
-				firstname: 1,
-				lastname: 2
-			})
-		var match = re.exec('First_Name: John, Last_Name: Doe');
-		assert.sameValue(match.length, 3);
-		assert.sameValue(match[0], "First_Name: John, Last_Name: Doe");
-		assert.sameValue(match[1], "John");
-		assert.sameValue(match[2], "Doe");
-		assert.sameValue(match.groups.firstname, "John");
-		assert.sameValue(match.groups.lastname, "Doe");
-	`
+// 		var re = new BabelRegExp(
+// 			/First_Name: ([0-9A-Z_a-z]+), Last_Name: ([0-9A-Z_a-z]+)/,
+// 			undefined,
+// 			{
+// 				firstname: 1,
+// 				lastname: 2
+// 			})
+// 		var match = re.exec('First_Name: John, Last_Name: Doe');
+// 		assert.sameValue(match.length, 3);
+// 		assert.sameValue(match[0], "First_Name: John, Last_Name: Doe");
+// 		assert.sameValue(match[1], "John");
+// 		assert.sameValue(match[2], "Doe");
+// 		assert.sameValue(match.groups.firstname, "John");
+// 		assert.sameValue(match.groups.lastname, "Doe");
+// 	`
 
-	testScript1(TESTLIB+SCRIPT, _undefined, t)
-}
+// 	testScript1(TESTLIB+SCRIPT, _undefined, t)
+// }
 
 func TestRegexpInvalidUTF8(t *testing.T) {
 	vm := New()

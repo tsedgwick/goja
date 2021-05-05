@@ -77,10 +77,12 @@ func (self *stash) MemUsage(ctx *MemUsageContext) (uint64, error) {
 		}
 	}
 	if len(self.values) > 0 {
-		inc, err := self.values.MemUsage(ctx)
-		total += inc
-		if err != nil {
-			return total, err
+		for _, v := range self.values {
+			inc, err := v.MemUsage(ctx)
+			total += inc
+			if err != nil {
+				return total, err
+			}
 		}
 	}
 

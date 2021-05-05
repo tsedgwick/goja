@@ -2392,14 +2392,14 @@ func tryFunc(f func()) (ret interface{}) {
 }
 
 func (r *Runtime) try(f func()) error {
-	if ex := r.vm.try(f); ex != nil {
+	if ex := r.vm.try(r.ctx, f); ex != nil {
 		return ex
 	}
 	return nil
 }
 
 func (r *Runtime) tryPanic(f func()) {
-	if ex := r.vm.try(f); ex != nil {
+	if ex := r.vm.try(r.ctx, f); ex != nil {
 		panic(ex)
 	}
 }
@@ -2679,58 +2679,4 @@ func (r *Runtime) MakeTypeError(args ...interface{}) *Object {
 func (r *Runtime) NewNativeFunction(name string, length int, call func(FunctionCall) Value) (*Object, error) {
 	x := r.newNativeFuncObj(r.NewObject(), call, nil, unistring.String(name), nil, length)
 	return x.val, nil
-}
-
-func shrinkCap(newSize, oldCap int) int {
-	if oldCap > 8 {
-		if cap := oldCap / 2; cap >= newSize {
-			return cap
-		}
-	}
-	return oldCap
-}
-
-func growCap(newSize, oldSize, oldCap int) int {
-	// Use the same algorithm as in runtime.growSlice
-	doublecap := oldCap + oldCap
-	if newSize > doublecap {
-		return newSize
-	} else {
-		if oldSize < 1024 {
-			return doublecap
-		} else {
-			cap := oldCap
-			// Check 0 < cap to detect overflow
-			// and prevent an infinite loop.
-			for 0 < cap && cap < newSize {
-				cap += cap / 4
-			}
-			// Return the requested cap when
-			// the calculation overflowed.
-			if cap <= 0 {
-				return newSize
-			}
-			return cap
-		}
-	}
-}
-
-func (r *Runtime) genId() (ret uint64) {
-	if r.hash == nil {
-		h := r.getHash()
-		r.idSeq = h.Sum64()
-	}
-	if r.idSeq == 0 {
-		r.idSeq = 1
-	}
-	ret = r.idSeq
-	r.idSeq++
-	return
-}
-
-func strPropToInt(s unistring.String) (int, bool) {
-	if res, err := strconv.Atoi(string(s)); err == nil {
-		return res, true
-	}
-	return 0, false
 }

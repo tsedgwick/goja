@@ -916,7 +916,6 @@ func (e *compiledFunctionLiteral) emitGetter(putOnStack bool) {
 	// e.c.p.dumpCode()
 	e.c.popScope()
 	e.c.p = savedPrg
-	e.c.blockStart = savedBlockStart
 	e.c.emit(&newFunc{prg: p, length: uint32(length), name: name, srcStart: uint32(e.expr.Idx0() - 1), srcEnd: uint32(e.expr.Idx1() - 1), strict: strict})
 	if !putOnStack {
 		e.c.emit(pop)

@@ -1,6 +1,7 @@
 package goja
 
 import (
+	"math"
 	"testing"
 
 	"github.com/dop251/goja/parser"

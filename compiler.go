@@ -364,14 +364,10 @@ func (p *Program) MemUsage(ctx *MemUsageContext) (uint64, error) {
 }
 
 func (s *scope) isFunction() bool {
-	if !s.lexical {
-		return s.outer != nil
-	}
 	return s.outer.isFunction()
 }
 
 func (s *scope) lookupName(name unistring.String) (binding *binding, noDynamics bool) {
-	var level uint32 = 0
 	noDynamics = true
 	toStash := false
 	for curScope := s; curScope != nil; curScope = curScope.outer {

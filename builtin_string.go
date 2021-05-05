@@ -385,41 +385,6 @@ func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
 	if regexp != _undefined && regexp != _null {
 		if isRegexp(regexp) {
 			if o, ok := regexp.(*Object); ok {
-				flags := o.Get("flags")
-				r.checkObjectCoercible(flags)
-				if !strings.Contains(flags.toString().String(), "g") {
-					panic(r.NewTypeError("RegExp doesn't have global flag set"))
-				}
-			}
-		}
-		if matcher := toMethod(r.getV(regexp, SymMatchAll)); matcher != nil {
-			return matcher(FunctionCall{
-				ctx:       call.ctx,
-				This:      regexp,
-				Arguments: []Value{call.This},
-			})
-		}
-	}
-
-	rx := r.newRegExp(regexp, asciiString("g"), r.global.RegExpPrototype)
-
-	if matcher, ok := r.toObject(rx.getSym(SymMatchAll, nil)).self.assertCallable(); ok {
-		return matcher(FunctionCall{
-			ctx:       call.ctx,
-			This:      rx.val,
-			Arguments: []Value{call.This.toString()},
-		})
-	}
-
-	panic(r.NewTypeError("RegExp matcher is not a function"))
-}
-
-func (r *Runtime) stringproto_matchAll(call FunctionCall) Value {
-	r.checkObjectCoercible(call.This)
-	regexp := call.Argument(0)
-	if regexp != _undefined && regexp != _null {
-		if isRegexp(regexp) {
-			if o, ok := regexp.(*Object); ok {
 				flags := o.self.getStr("flags", nil)
 				r.checkObjectCoercible(flags)
 				if !strings.Contains(flags.toString().String(), "g") {

@@ -553,7 +553,7 @@ func (vm *vm) try(ctx1 context.Context, f func()) (ex *Exception) {
 				iterTail := vm.iterStack[iterLen:]
 				for i := range iterTail {
 					if iter := iterTail[i].iter; iter != nil {
-						vm.try(func() {
+						vm.try(ctx1, func() {
 							returnIter(iter)
 						})
 					}
@@ -571,7 +571,7 @@ func (vm *vm) try(ctx1 context.Context, f func()) (ex *Exception) {
 				ex = &Exception{
 					val: x1,
 				}
-				if x1.ExportType().Kind() == reflect.String {
+				if x1 != nil && x1.ExportType() != nil && x1.ExportType().Kind() == reflect.String {
 					ex.ignoreStack = true
 				}
 				v := x1.baseObject(vm.r)
@@ -647,7 +647,7 @@ func (vm *vm) peek() Value {
 	return vm.stack[vm.sp-1]
 }
 
-func (vm *vm) saveCtx(ctx *context) {
+func (vm *vm) saveCtx(ctx *vmContext) {
 	ctx.prg, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args =
 		vm.prg, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args
 	if vm.funcName != "" {
@@ -665,12 +665,12 @@ func (vm *vm) pushCtx() {
 			err:   ex,
 		})
 	}
-	vm.callStack = append(vm.callStack, context{})
+	vm.callStack = append(vm.callStack, vmContext{})
 	ctx := &vm.callStack[len(vm.callStack)-1]
 	vm.saveCtx(ctx)
 }
 
-func (vm *vm) restoreCtx(ctx *context) {
+func (vm *vm) restoreCtx(ctx *vmContext) {
 	vm.ctx, vm.newTarget, vm.prg, vm.funcName, vm.stash, vm.newTarget, vm.result, vm.pc, vm.sb, vm.args =
 		ctx.ctx, ctx.newTarget, ctx.prg, ctx.funcName, ctx.stash, ctx.newTarget, ctx.result, ctx.pc, ctx.sb, ctx.args
 	ctx.stash = vm.stash
@@ -680,7 +680,6 @@ func (vm *vm) restoreCtx(ctx *context) {
 	ctx.args = vm.args
 	ctx.ctx = vm.ctx
 }
-
 
 func (vm *vm) popCtx() {
 	l := len(vm.callStack) - 1
@@ -3231,21 +3230,8 @@ func (t try) exec(vm *vm) {
 		// run the catch block (in try)
 		vm.pc = o + int(t.catchOffset)
 		// TODO: if ex.val is an Error, set the stack property
-<<<<<<< HEAD
 		vm.push(ex.val)
-		ex = vm.runTry()
-=======
-		if t.dynamic {
-			vm.newStash()
-			vm.stash.putByIdx(0, ex.val)
-		} else {
-			vm.push(ex.val)
-		}
 		ex = vm.runTry(vm.ctx)
-		if t.dynamic {
-			vm.stash = vm.stash.outer
-		}
->>>>>>> REALMC-6371: add missing otto functionality (#1)
 	}
 
 	if t.finallyOffset > 0 {
@@ -3531,11 +3517,10 @@ type iterNext int32
 func (jmp iterNext) exec(vm *vm) {
 	l := len(vm.iterStack) - 1
 	iter := vm.iterStack[l].iter
-<<<<<<< HEAD
 	var res *Object
 	var done bool
 	var value Value
-	ex := vm.try(func() {
+	ex := vm.try(vm.ctx, func() {
 		res = vm.r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{This: iter}))
 		done = nilSafe(res.self.getStr("done", nil)).ToBoolean()
 		if !done {
@@ -3550,11 +3535,6 @@ func (jmp iterNext) exec(vm *vm) {
 			vm.iterStack[l].val = value
 			vm.pc++
 		}
-=======
-	res := vm.r.toObject(toMethod(iter.self.getStr("next", nil))(FunctionCall{ctx: vm.ctx, This: iter}))
-	if nilSafe(res.self.getStr("done", nil)).ToBoolean() {
-		vm.pc += int(jmp)
->>>>>>> REALMC-6371: add missing otto functionality (#1)
 	} else {
 		l := len(vm.iterStack) - 1
 		vm.iterStack[l] = iterStackItem{}

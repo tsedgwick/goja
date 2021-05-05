@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"sort"
+	"sync"
 
 	"github.com/dop251/goja/unistring"
 )
@@ -875,9 +876,9 @@ func (o *Object) tryPrimitive(methodName unistring.String) Value {
 }
 
 func (o *Object) genericToPrimitiveNumber() Value {
-	if o.prototype == nil {
-		o.prototype = o.val.runtime.global.ObjectPrototype
-	}
+	// if o. == nil {
+	// 	o.prototype = o.val.runtime.global.ObjectPrototype
+	// }
 	if v := o.tryPrimitive("valueOf"); v != nil {
 		return v
 	}
@@ -894,9 +895,9 @@ func (o *baseObject) toPrimitiveNumber() Value {
 }
 
 func (o *Object) genericToPrimitiveString() Value {
-	if o.prototype == nil {
-		o.prototype = o.val.runtime.global.ObjectPrototype
-	}
+	// if o.base == nil {
+	// 	o.prototype = o.val.runtime.global.ObjectPrototype
+	// }
 	if v := o.tryPrimitive("toString"); v != nil {
 		return v
 	}

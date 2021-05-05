@@ -385,7 +385,7 @@ func (r *Runtime) object_keys(call FunctionCall) Value {
 
 func (r *Runtime) object_entries(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	if object == nil {
+	if obj == nil {
 		panic(r.NewTypeError("Object prototype may only be an Object or null"))
 	}
 	var values []Value
@@ -403,7 +403,7 @@ func (r *Runtime) object_entries(call FunctionCall) Value {
 
 func (r *Runtime) object_values(call FunctionCall) Value {
 	obj := call.Argument(0).ToObject(r)
-	if object == nil {
+	if obj == nil {
 		panic(r.NewTypeError("Object prototype may only be an Object or null"))
 	}
 	var values []Value
